@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Te Amo Hearts</title>
+<style>
+  html,body { height:100%; margin:0; background:linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%); -webkit-tap-highlight-color: transparent; }
+  canvas { display:block; width:100%; height:100vh; touch-action: none; }
+  body, canvas { -webkit-user-select:none; -webkit-user-drag:none; user-select:none; overflow:hidden; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  let DPR = Math.max(1, window.devicePixelRatio || 1);
+
+  function resize() {
+    DPR = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(innerWidth * DPR);
+    canvas.height = Math.floor(innerHeight * DPR);
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  // Config
+  const MAX_PARTICLES = 160;
+  const SPAWN_PER_FRAME = 1.5;
+  const TEXTS = ['Te Amo Carlie','Te Amo Mamacita','Te Quiero', 'Eres Mi Vida','💕'];
+  const EMOJIS = ['❤️','🧡','💛','💚','💙','💜','🩷','🩶','🤍','🤎','💗','💖','💝'];
+  const COLORS = ['#ff1744','#ff5252','#ff1744','#ff6e40','#ff9100','#ff6b35'];
+  const FONTS = ['bold 18px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial'];
+  const GRAVITY = 0.018;
+  const FRICTION = 0.994;
+  const WIND = 0.0002;
+
+  // Particle class
+  class Particle {
+    constructor(x,y, type){
+      this.reset(x,y,type);
+    }
+    reset(x,y,type){
+      this.x = x;
+      this.y = y;
+      const speed = Math.random()*2.2 + 0.5;
+      const angle = Math.random()*Math.PI*2;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed * 0.5 - Math.random()*1.8;
+      this.size = Math.random()*18 + 11;
+      this.lifetime = Math.random()*2.5 + 2.3;
+      this.age = 0;
+      this.alpha = 0;
+      this.rotation = Math.random()*Math.PI*2;
+      this.spin = (Math.random()-0.5)*0.05;
+      this.type = type || (Math.random() < 0.4 ? 'text' : 'emoji');
+      this.color = COLORS[Math.floor(Math.random()*COLORS.length)];
+      this.emoji = EMOJIS[Math.floor(Math.random()*EMOJIS.length)];
+      this.text = TEXTS[Math.floor(Math.random()*TEXTS.length)];
+      this.scale = Math.random()*0.85 + 0.65;
+      this.growth = Math.random()*0.018 + 0.004;
+      this.pulse = Math.random() < 0.2;
+      this.wobble = Math.random();
+      this.floatPhase = Math.random() * Math.PI * 2;
+    }
+    update(dt, attractPoints){
+      this.age += dt;
+      const lifeRatio = this.age / this.lifetime;
+      
+      if (lifeRatio < 0.1) this.alpha = lifeRatio/0.1;
+      else if (lifeRatio > 0.87) this.alpha = Math.max(0, 1 - (lifeRatio-0.87)/0.13);
+      else this.alpha = 1;
+
+      // attraction with swirl
+      if (attractPoints && attractPoints.length) {
+        for (let p of attractPoints) {
+          const dx = p.x - this.x;
+          const dy = p.y - this.y;
+          const dist2 = dx*dx + dy*dy;
+          const dist = Math.sqrt(dist2) + 0.001;
+          if (dist < 200) {
+            const f = (1 - dist/200) * (p.force || 0.55);
+            this.vx += (dx/dist) * f * 0.55 * dt * 60;
+            this.vy += (dy/dist) * f * 0.55 * dt * 60;
+            this.vx += -dy/dist * f * 0.18 * dt * 60;
+            this.vy += dx/dist * f * 0.18 * dt * 60;
+          }
+        }
+      }
+
+      // floating wave motion
+      this.vy += Math.sin(this.age * 1.5 + this.floatPhase) * 0.015;
+      this.vx += Math.cos(this.age * 0.8 + this.floatPhase) * 0.008;
+
+      this.vy += GRAVITY * (0.4 + this.size/35);
+      this.vx *= FRICTION;
+      this.vy *= FRICTION;
+      this.vx += (Math.random()-0.5) * WIND;
+      this.x += this.vx * dt * 60;
+      this.y += this.vy * dt * 60;
+
+      if (this.x < -60) this.x = innerWidth + 60;
+      if (this.x > innerWidth + 60) this.x = -60;
+
+      // scale animation
+      if (this.pulse) {
+        this.scale = 0.85 + Math.sin(this.age * 2.5) * 0.15;
+      } else {
+        this.scale += this.growth * dt * 60;
+      }
+
+      return this.age > this.lifetime || this.y > innerHeight + 100;
+    }
+    draw(ctx){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, this.alpha);
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rotation + this.age * this.spin);
+      const s = this.scale * (this.size/18);
+      
+      if (this.type === 'emoji') {
+        ctx.font = `${Math.floor(this.size * s)}px system-ui, -apple-system, "Segoe UI Emoji", Apple Color Emoji`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = this.color;
+        
+        // dynamic glow
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 14 * this.alpha;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.filter = `drop-shadow(0 0 ${10 * this.alpha}px ${this.color})`;
+        
+        ctx.fillText(this.emoji, 0, 0);
+      } else {
+        ctx.font = `${Math.floor((this.size*0.82) * s)}px ${FONTS[0]}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 9 * this.alpha;
+        ctx.fillText(this.text, 0, 0);
+      }
+      ctx.restore();
+    }
+  }
+
+  const particles = [];
+  for (let i=0;i<Math.min(MAX_PARTICLES, 45);i++){
+    const p = new Particle(innerWidth/2, innerHeight/2);
+    p.age = Math.random()*p.lifetime;
+    particles.push(p);
+  }
+
+  let last = performance.now();
+  const attractPoints = [];
+
+  function spawn(x,y,amount=1, type) {
+    for (let i=0;i<amount;i++){
+      if (particles.length < MAX_PARTICLES) {
+        particles.push(new Particle(x + (Math.random()-0.5)*30, y + (Math.random()-0.5)*30, type));
+      } else {
+        const p = particles.shift();
+        p.reset(x + (Math.random()-0.5)*60, y + (Math.random()-0.5)*60, type);
+        particles.push(p);
+      }
+    }
+  }
+
+  // spawn from center
+  function worldSpawn(dt) {
+    const count = Math.max(0, Math.floor(SPAWN_PER_FRAME * 0.8));
+    for (let i=0;i<count;i++){
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 40;
+      const x = innerWidth/2 + Math.cos(angle) * dist;
+      const y = innerHeight/2 + Math.sin(angle) * dist;
+      spawn(x,y,1);
+    }
+    if (Math.random() < 0.018) {
+      spawn(innerWidth/2, innerHeight/2, 4, Math.random() < 0.6 ? 'emoji' : 'text');
+    }
+  }
+
+  let isDown = false;
+  let pointer = { x: innerWidth/2, y: innerHeight/2 };
+
+  function pointerDown(x,y) {
+    isDown = true;
+    pointer.x = x; pointer.y = y;
+    spawn(x,y,16);
+    attractPoints.push({x,y,force: 0.85, ttl: 0.32});
+  }
+  function pointerMove(x,y) {
+    pointer.x = x; pointer.y = y;
+    if (isDown) {
+      spawn(x,y,3.5);
+      attractPoints.push({x,y,force: 0.55, ttl: 0.22});
+    }
+  }
+  function pointerUp() {
+    isDown = false;
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    pointerDown(e.clientX, e.clientY);
+  });
+  canvas.addEventListener('mousemove', e => {
+    pointerMove(e.clientX, e.clientY);
+  });
+  window.addEventListener('mouseup', e => pointerUp());
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    pointerDown(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    pointerMove(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    pointerUp();
+  }, { passive: false });
+
+  canvas.addEventListener('click', e => {
+    spawn(e.clientX, e.clientY, 10, Math.random() < 0.65 ? 'emoji' : 'text');
+  });
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last)/1000);
+    last = now;
+
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+
+    // subtle animated background
+    ctx.fillStyle = 'rgba(10, 14, 39, 0.12)';
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+
+    worldSpawn(dt);
+
+    for (let i = attractPoints.length - 1; i >= 0; i--) {
+      attractPoints[i].ttl -= dt;
+      if (attractPoints[i].ttl <= 0) attractPoints.splice(i,1);
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      const dead = p.update(dt, attractPoints);
+      p.draw(ctx);
+      if (dead) {
+        p.reset(innerWidth/2 + (Math.random()-0.5)*50, innerHeight/2 + (Math.random()-0.5)*50, Math.random() < 0.65 ? 'text' : 'emoji');
+      }
+    }
+
+    // occasional center bursts
+    if (Math.random() < 0.005) {
+      spawn(innerWidth/2, innerHeight/2, 2, 'emoji');
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', (e) => {
+    const t = performance.now();
+    if (t - lastTouch < 300) e.preventDefault();
+    lastTouch = t;
+  }, { passive: false });
+
+})();
+</script>
+</body>
+</html>
