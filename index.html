@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Te Amo Hearts</title>
+<style>
+  html,body { height:100%; margin:0; background:linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%); -webkit-tap-highlight-color: transparent; }
+  canvas { display:block; width:100%; height:100vh; touch-action: none; }
+  body, canvas { -webkit-user-select:none; -webkit-user-drag:none; user-select:none; overflow:hidden; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  let DPR = Math.max(1, window.devicePixelRatio || 1);
+
+  function resize() {
+    DPR = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(innerWidth * DPR);
+    canvas.height = Math.floor(innerHeight * DPR);
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  // Config - optimized for performance
+  const MAX_PARTICLES = 140;        // reduced from 240
+  const SPAWN_PER_FRAME = 1;        // reduced from 2
+  const TEXTS = ['Te Amo','Te Amo','Te Amo'];
+  const HEARTS = ['❤️'];             // modern iOS red heart only
+  const COLORS = ['#ff1744','#ff5252','#ff1744','#ff6e40']; // vibrant neon reds
+  const FONTS = ['bold 18px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial'];
+  const GRAVITY = 0.025;
+  const FRICTION = 0.992;
+  const WIND = 0.0003;
+
+  // Particle class
+  class Particle {
+    constructor(x,y, type){
+      this.reset(x,y,type);
+    }
+    reset(x,y,type){
+      this.x = x;
+      this.y = y;
+      const speed = Math.random()*1.8 + 0.3;
+      const angle = Math.random()*Math.PI*2;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed * 0.6 - Math.random()*1.2;
+      this.size = Math.random()*16 + 10;
+      this.lifetime = Math.random()*2.2 + 2.2;
+      this.age = 0;
+      this.alpha = 0;
+      this.rotation = Math.random()*Math.PI*2;
+      this.spin = (Math.random()-0.5)*0.04;
+      this.type = type || (Math.random() < 0.35 ? 'text' : 'heart');
+      this.color = COLORS[Math.floor(Math.random()*COLORS.length)];
+      this.text = this.type === 'heart' ? HEARTS[0] : TEXTS[Math.floor(Math.random()*TEXTS.length)];
+      this.scale = Math.random()*0.8 + 0.7;
+      this.growth = Math.random()*0.015 + 0.003;
+      this.glow = Math.random() < 0.15;
+    }
+    update(dt, attractPoints){
+      this.age += dt;
+      const lifeRatio = this.age / this.lifetime;
+      
+      if (lifeRatio < 0.1) this.alpha = lifeRatio/0.1;
+      else if (lifeRatio > 0.88) this.alpha = Math.max(0, 1 - (lifeRatio-0.88)/0.12);
+      else this.alpha = 1;
+
+      // attract points with reduced range for performance
+      if (attractPoints && attractPoints.length) {
+        for (let p of attractPoints) {
+          const dx = p.x - this.x;
+          const dy = p.y - this.y;
+          const dist2 = dx*dx + dy*dy;
+          const dist = Math.sqrt(dist2) + 0.001;
+          if (dist < 180) {
+            const f = (1 - dist/180) * (p.force || 0.5);
+            this.vx += (dx/dist) * f * 0.5 * dt * 60;
+            this.vy += (dy/dist) * f * 0.5 * dt * 60;
+            this.vx += -dy/dist * f * 0.15 * dt * 60;
+            this.vy += dx/dist * f * 0.15 * dt * 60;
+          }
+        }
+      }
+
+      this.vy += GRAVITY * (0.5 + this.size/30);
+      this.vx *= FRICTION;
+      this.vy *= FRICTION;
+      this.vx += (Math.random()-0.5) * WIND;
+      this.x += this.vx * dt * 60;
+      this.y += this.vy * dt * 60;
+
+      if (this.x < -50) this.x = innerWidth + 50;
+      if (this.x > innerWidth + 50) this.x = -50;
+
+      this.scale += this.growth * dt * 60;
+
+      return this.age > this.lifetime || this.y > innerHeight + 80;
+    }
+    draw(ctx){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, this.alpha);
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rotation + this.age * this.spin);
+      const s = this.scale * (this.size/18);
+      
+      if (this.type === 'heart') {
+        ctx.font = `${Math.floor(this.size * s)}px system-ui, -apple-system, "Segoe UI Emoji", Apple Color Emoji`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = this.color;
+        
+        // enhanced glow for futuristic feel
+        if (this.glow) {
+          ctx.shadowColor = this.color;
+          ctx.shadowBlur = 16 * this.alpha;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+          ctx.filter = `drop-shadow(0 0 ${12 * this.alpha}px ${this.color})`;
+        } else {
+          ctx.shadowColor = this.color;
+          ctx.shadowBlur = 10 * this.alpha;
+        }
+        
+        ctx.fillText(this.text, 0, 0);
+      } else {
+        ctx.font = `${Math.floor((this.size*0.8) * s)}px ${FONTS[0]}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8 * this.alpha;
+        ctx.fillText(this.text, 0, 0);
+      }
+      ctx.restore();
+    }
+  }
+
+  const particles = [];
+  for (let i=0;i<Math.min(MAX_PARTICLES, 40);i++){
+    const p = new Particle(Math.random()*innerWidth, Math.random()*innerHeight);
+    p.age = Math.random()*p.lifetime;
+    particles.push(p);
+  }
+
+  let last = performance.now();
+  const attractPoints = [];
+
+  function spawn(x,y,amount=1, type) {
+    for (let i=0;i<amount;i++){
+      if (particles.length < MAX_PARTICLES) {
+        particles.push(new Particle(x + (Math.random()-0.5)*25, y + (Math.random()-0.5)*25, type));
+      } else {
+        const p = particles.shift();
+        p.reset(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, type);
+        particles.push(p);
+      }
+    }
+  }
+
+  function worldSpawn(dt) {
+    const count = Math.max(0, Math.floor(SPAWN_PER_FRAME));
+    for (let i=0;i<count;i++){
+      const x = Math.random()*innerWidth;
+      const y = -10 - Math.random()*30;
+      spawn(x,y,1);
+    }
+    if (Math.random() < 0.012) spawn(Math.random()*innerWidth, -15, 3, Math.random() < 0.6 ? 'heart' : 'text');
+  }
+
+  let isDown = false;
+  let pointer = { x: innerWidth/2, y: innerHeight/2 };
+
+  function pointerDown(x,y) {
+    isDown = true;
+    pointer.x = x; pointer.y = y;
+    spawn(x,y,14);
+    attractPoints.push({x,y,force: 0.8, ttl: 0.3});
+  }
+  function pointerMove(x,y) {
+    pointer.x = x; pointer.y = y;
+    if (isDown) {
+      spawn(x,y,3);
+      attractPoints.push({x,y,force: 0.5, ttl: 0.2});
+    }
+  }
+  function pointerUp() {
+    isDown = false;
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    pointerDown(e.clientX, e.clientY);
+  });
+  canvas.addEventListener('mousemove', e => {
+    pointerMove(e.clientX, e.clientY);
+  });
+  window.addEventListener('mouseup', e => pointerUp());
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    pointerDown(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    pointerMove(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    pointerUp();
+  }, { passive: false });
+
+  canvas.addEventListener('click', e => {
+    spawn(e.clientX, e.clientY, 8, Math.random() < 0.65 ? 'heart' : 'text');
+  });
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last)/1000);
+    last = now;
+
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+
+    ctx.fillStyle = 'rgba(10, 14, 39, 0.15)';
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+
+    worldSpawn(dt);
+
+    for (let i = attractPoints.length - 1; i >= 0; i--) {
+      attractPoints[i].ttl -= dt;
+      if (attractPoints[i].ttl <= 0) attractPoints.splice(i,1);
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      const dead = p.update(dt, attractPoints);
+      p.draw(ctx);
+      if (dead) {
+        p.reset(Math.random()*innerWidth, -10, Math.random() < 0.65 ? 'text' : 'heart');
+      }
+    }
+
+    if (Math.random() < 0.004) {
+      spawn(Math.random()*innerWidth, Math.random()*innerHeight*0.35, 1, 'heart');
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', (e) => {
+    const t = performance.now();
+    if (t - lastTouch < 300) e.preventDefault();
+    lastTouch = t;
+  }, { passive: false });
+
+})();
+</script>
+</body>
+</html>
