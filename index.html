@@ -30,16 +30,16 @@
   window.addEventListener('resize', resize, { passive: true });
   resize();
 
-  // Config - optimized for performance
-  const MAX_PARTICLES = 140;        // reduced from 240
-  const SPAWN_PER_FRAME = 1;        // reduced from 2
-  const TEXTS = ['Te Amo','Te Amo','Te Amo'];
-  const HEARTS = ['❤️'];             // modern iOS red heart only
-  const COLORS = ['#ff1744','#ff5252','#ff1744','#ff6e40']; // vibrant neon reds
+  // Config
+  const MAX_PARTICLES = 160;
+  const SPAWN_PER_FRAME = 1.5;
+  const TEXTS = ['Te Amo Carlie','Te Amo Mamacita','Te Quiero', 'Eres Mi Vida,'💕'];
+  const EMOJIS = ['❤️','🧡','💛','💚','💙','💜','🩷','🩶','🤍','🤎','💗','💖','💝'];
+  const COLORS = ['#ff1744','#ff5252','#ff1744','#ff6e40','#ff9100','#ff6b35'];
   const FONTS = ['bold 18px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial'];
-  const GRAVITY = 0.025;
-  const FRICTION = 0.992;
-  const WIND = 0.0003;
+  const GRAVITY = 0.018;
+  const FRICTION = 0.994;
+  const WIND = 0.0002;
 
   // Particle class
   class Particle {
@@ -49,61 +49,73 @@
     reset(x,y,type){
       this.x = x;
       this.y = y;
-      const speed = Math.random()*1.8 + 0.3;
+      const speed = Math.random()*2.2 + 0.5;
       const angle = Math.random()*Math.PI*2;
       this.vx = Math.cos(angle) * speed;
-      this.vy = Math.sin(angle) * speed * 0.6 - Math.random()*1.2;
-      this.size = Math.random()*16 + 10;
-      this.lifetime = Math.random()*2.2 + 2.2;
+      this.vy = Math.sin(angle) * speed * 0.5 - Math.random()*1.8;
+      this.size = Math.random()*18 + 11;
+      this.lifetime = Math.random()*2.5 + 2.3;
       this.age = 0;
       this.alpha = 0;
       this.rotation = Math.random()*Math.PI*2;
-      this.spin = (Math.random()-0.5)*0.04;
-      this.type = type || (Math.random() < 0.35 ? 'text' : 'heart');
+      this.spin = (Math.random()-0.5)*0.05;
+      this.type = type || (Math.random() < 0.4 ? 'text' : 'emoji');
       this.color = COLORS[Math.floor(Math.random()*COLORS.length)];
-      this.text = this.type === 'heart' ? HEARTS[0] : TEXTS[Math.floor(Math.random()*TEXTS.length)];
-      this.scale = Math.random()*0.8 + 0.7;
-      this.growth = Math.random()*0.015 + 0.003;
-      this.glow = Math.random() < 0.15;
+      this.emoji = EMOJIS[Math.floor(Math.random()*EMOJIS.length)];
+      this.text = TEXTS[Math.floor(Math.random()*TEXTS.length)];
+      this.scale = Math.random()*0.85 + 0.65;
+      this.growth = Math.random()*0.018 + 0.004;
+      this.pulse = Math.random() < 0.2;
+      this.wobble = Math.random();
+      this.floatPhase = Math.random() * Math.PI * 2;
     }
     update(dt, attractPoints){
       this.age += dt;
       const lifeRatio = this.age / this.lifetime;
       
       if (lifeRatio < 0.1) this.alpha = lifeRatio/0.1;
-      else if (lifeRatio > 0.88) this.alpha = Math.max(0, 1 - (lifeRatio-0.88)/0.12);
+      else if (lifeRatio > 0.87) this.alpha = Math.max(0, 1 - (lifeRatio-0.87)/0.13);
       else this.alpha = 1;
 
-      // attract points with reduced range for performance
+      // attraction with swirl
       if (attractPoints && attractPoints.length) {
         for (let p of attractPoints) {
           const dx = p.x - this.x;
           const dy = p.y - this.y;
           const dist2 = dx*dx + dy*dy;
           const dist = Math.sqrt(dist2) + 0.001;
-          if (dist < 180) {
-            const f = (1 - dist/180) * (p.force || 0.5);
-            this.vx += (dx/dist) * f * 0.5 * dt * 60;
-            this.vy += (dy/dist) * f * 0.5 * dt * 60;
-            this.vx += -dy/dist * f * 0.15 * dt * 60;
-            this.vy += dx/dist * f * 0.15 * dt * 60;
+          if (dist < 200) {
+            const f = (1 - dist/200) * (p.force || 0.55);
+            this.vx += (dx/dist) * f * 0.55 * dt * 60;
+            this.vy += (dy/dist) * f * 0.55 * dt * 60;
+            this.vx += -dy/dist * f * 0.18 * dt * 60;
+            this.vy += dx/dist * f * 0.18 * dt * 60;
           }
         }
       }
 
-      this.vy += GRAVITY * (0.5 + this.size/30);
+      // floating wave motion
+      this.vy += Math.sin(this.age * 1.5 + this.floatPhase) * 0.015;
+      this.vx += Math.cos(this.age * 0.8 + this.floatPhase) * 0.008;
+
+      this.vy += GRAVITY * (0.4 + this.size/35);
       this.vx *= FRICTION;
       this.vy *= FRICTION;
       this.vx += (Math.random()-0.5) * WIND;
       this.x += this.vx * dt * 60;
       this.y += this.vy * dt * 60;
 
-      if (this.x < -50) this.x = innerWidth + 50;
-      if (this.x > innerWidth + 50) this.x = -50;
+      if (this.x < -60) this.x = innerWidth + 60;
+      if (this.x > innerWidth + 60) this.x = -60;
 
-      this.scale += this.growth * dt * 60;
+      // scale animation
+      if (this.pulse) {
+        this.scale = 0.85 + Math.sin(this.age * 2.5) * 0.15;
+      } else {
+        this.scale += this.growth * dt * 60;
+      }
 
-      return this.age > this.lifetime || this.y > innerHeight + 80;
+      return this.age > this.lifetime || this.y > innerHeight + 100;
     }
     draw(ctx){
       ctx.save();
@@ -112,32 +124,27 @@
       ctx.rotate(this.rotation + this.age * this.spin);
       const s = this.scale * (this.size/18);
       
-      if (this.type === 'heart') {
+      if (this.type === 'emoji') {
         ctx.font = `${Math.floor(this.size * s)}px system-ui, -apple-system, "Segoe UI Emoji", Apple Color Emoji`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = this.color;
         
-        // enhanced glow for futuristic feel
-        if (this.glow) {
-          ctx.shadowColor = this.color;
-          ctx.shadowBlur = 16 * this.alpha;
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = 0;
-          ctx.filter = `drop-shadow(0 0 ${12 * this.alpha}px ${this.color})`;
-        } else {
-          ctx.shadowColor = this.color;
-          ctx.shadowBlur = 10 * this.alpha;
-        }
+        // dynamic glow
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 14 * this.alpha;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.filter = `drop-shadow(0 0 ${10 * this.alpha}px ${this.color})`;
         
-        ctx.fillText(this.text, 0, 0);
+        ctx.fillText(this.emoji, 0, 0);
       } else {
-        ctx.font = `${Math.floor((this.size*0.8) * s)}px ${FONTS[0]}`;
+        ctx.font = `${Math.floor((this.size*0.82) * s)}px ${FONTS[0]}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = this.color;
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 8 * this.alpha;
+        ctx.shadowBlur = 9 * this.alpha;
         ctx.fillText(this.text, 0, 0);
       }
       ctx.restore();
@@ -145,8 +152,8 @@
   }
 
   const particles = [];
-  for (let i=0;i<Math.min(MAX_PARTICLES, 40);i++){
-    const p = new Particle(Math.random()*innerWidth, Math.random()*innerHeight);
+  for (let i=0;i<Math.min(MAX_PARTICLES, 45);i++){
+    const p = new Particle(innerWidth/2, innerHeight/2);
     p.age = Math.random()*p.lifetime;
     particles.push(p);
   }
@@ -157,23 +164,28 @@
   function spawn(x,y,amount=1, type) {
     for (let i=0;i<amount;i++){
       if (particles.length < MAX_PARTICLES) {
-        particles.push(new Particle(x + (Math.random()-0.5)*25, y + (Math.random()-0.5)*25, type));
+        particles.push(new Particle(x + (Math.random()-0.5)*30, y + (Math.random()-0.5)*30, type));
       } else {
         const p = particles.shift();
-        p.reset(x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50, type);
+        p.reset(x + (Math.random()-0.5)*60, y + (Math.random()-0.5)*60, type);
         particles.push(p);
       }
     }
   }
 
+  // spawn from center
   function worldSpawn(dt) {
-    const count = Math.max(0, Math.floor(SPAWN_PER_FRAME));
+    const count = Math.max(0, Math.floor(SPAWN_PER_FRAME * 0.8));
     for (let i=0;i<count;i++){
-      const x = Math.random()*innerWidth;
-      const y = -10 - Math.random()*30;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 40;
+      const x = innerWidth/2 + Math.cos(angle) * dist;
+      const y = innerHeight/2 + Math.sin(angle) * dist;
       spawn(x,y,1);
     }
-    if (Math.random() < 0.012) spawn(Math.random()*innerWidth, -15, 3, Math.random() < 0.6 ? 'heart' : 'text');
+    if (Math.random() < 0.018) {
+      spawn(innerWidth/2, innerHeight/2, 4, Math.random() < 0.6 ? 'emoji' : 'text');
+    }
   }
 
   let isDown = false;
@@ -182,14 +194,14 @@
   function pointerDown(x,y) {
     isDown = true;
     pointer.x = x; pointer.y = y;
-    spawn(x,y,14);
-    attractPoints.push({x,y,force: 0.8, ttl: 0.3});
+    spawn(x,y,16);
+    attractPoints.push({x,y,force: 0.85, ttl: 0.32});
   }
   function pointerMove(x,y) {
     pointer.x = x; pointer.y = y;
     if (isDown) {
-      spawn(x,y,3);
-      attractPoints.push({x,y,force: 0.5, ttl: 0.2});
+      spawn(x,y,3.5);
+      attractPoints.push({x,y,force: 0.55, ttl: 0.22});
     }
   }
   function pointerUp() {
@@ -221,7 +233,7 @@
   }, { passive: false });
 
   canvas.addEventListener('click', e => {
-    spawn(e.clientX, e.clientY, 8, Math.random() < 0.65 ? 'heart' : 'text');
+    spawn(e.clientX, e.clientY, 10, Math.random() < 0.65 ? 'emoji' : 'text');
   });
 
   function frame(now) {
@@ -230,7 +242,8 @@
 
     ctx.clearRect(0,0,innerWidth,innerHeight);
 
-    ctx.fillStyle = 'rgba(10, 14, 39, 0.15)';
+    // subtle animated background
+    ctx.fillStyle = 'rgba(10, 14, 39, 0.12)';
     ctx.fillRect(0,0,innerWidth,innerHeight);
 
     worldSpawn(dt);
@@ -245,12 +258,13 @@
       const dead = p.update(dt, attractPoints);
       p.draw(ctx);
       if (dead) {
-        p.reset(Math.random()*innerWidth, -10, Math.random() < 0.65 ? 'text' : 'heart');
+        p.reset(innerWidth/2 + (Math.random()-0.5)*50, innerHeight/2 + (Math.random()-0.5)*50, Math.random() < 0.65 ? 'text' : 'emoji');
       }
     }
 
-    if (Math.random() < 0.004) {
-      spawn(Math.random()*innerWidth, Math.random()*innerHeight*0.35, 1, 'heart');
+    // occasional center bursts
+    if (Math.random() < 0.005) {
+      spawn(innerWidth/2, innerHeight/2, 2, 'emoji');
     }
 
     requestAnimationFrame(frame);
